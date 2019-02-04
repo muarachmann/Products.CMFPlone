@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 from plone.supermodel import model
+from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone import PloneMessageFactory as _
 from Products.CMFPlone._compat import dump_json_to_text
 from Products.CMFPlone.interfaces.basetool import IPloneBaseTool
 from zope import schema
+from zope.component.hooks import getSite
 from zope.interface import Attribute
 from zope.interface import implementer
 from zope.interface import Interface
 from zope.interface import Invalid
+from zope.interface import invariant
 from zope.schema.vocabulary import SimpleTerm
 from zope.schema.vocabulary import SimpleVocabulary
 
@@ -1720,6 +1723,20 @@ class ILinkSchema(Interface):
         required=False)
 
 
+def _check_tales_expression(value):
+    from Products.PageTemplates.Expressions import getEngine
+    try:
+        getEngine().compile(value)
+    except Exception:
+        raise Invalid(
+            _(
+                'The expression "${value}" is invalid',
+                mapping={'value': value},
+            )
+        )
+    return True
+
+
 class IActionSchema(Interface):
 
     category = schema.Choice(
@@ -1747,7 +1764,9 @@ class IActionSchema(Interface):
             default=u'An expression producing the called URL. '
             u'Example: string:${globals_view/navigationRootUrl}/page'
         ),
-        required=True)
+        required=True,
+        constraint=_check_tales_expression,
+    )
 
     available_expr = schema.ASCIILine(
         title=_(u'action_condition_heading', default=u'Condition'),
@@ -1789,6 +1808,29 @@ class INewActionSchema(Interface):
     id = schema.ASCIILine(
         title=_(u'Id'),
         required=True)
+
+    @invariant
+    def validate_category_id(data):
+        categoryid = data.category
+        pa = getToolByName(getSite(), 'portal_actions')
+        category = pa.get(categoryid, {})
+        actionid = data.id
+        if actionid in category:
+            raise Invalid(
+                _(
+                    'An action with the id "${actionid}" already exists',
+                    mapping={'actionid': actionid},
+                )
+            )
+        try:
+            category._checkId(actionid)
+        except Exception:
+            raise Invalid(
+                _(
+                    'The id "${actionid}" is invalid',
+                    mapping={'actionid': actionid},
+                )
+            )
 
 
 class IPloneControlPanelView(Interface):
