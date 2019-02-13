@@ -1,6 +1,6 @@
-<p class="documentDescription description"
+<div class="documentDescription description"
     tal:define="description context/Description"
     tal:content="description"
     tal:condition="description">
   Description
-</p>
+</div>
